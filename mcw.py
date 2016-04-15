@@ -21,7 +21,7 @@ key presses it finds. For example::
     p.stop()
 '''
 
-from psychopy import parallel, core, clock
+from psychopy import core, clock,visual,event
 import time
 if core.havePyglet:
     import pyglet
@@ -29,25 +29,44 @@ from multiprocessing import Queue, Process
 from Queue import Empty
 import atexit
 
+###### Projector setup:
+# Projector: Panasonic PT D87700UK
+# PDF Manual: http://www.projectorcentral.com/pdf/projector_spec_3149.pdf
+
+projector_refresh_rate = 120
+
+def projector_window():
+    '''Creates and returns the Window object configured for the MEG projector'''
+    win = visual.Window((800,600),color="black",fullscr=True,allowGUI=False,units="pix",useFBO=False)
+    print 'Assuming refresh rate is set to %f' % projector_refresh_rate
+    measure_framerate = win.getActualFrameRate()
+    print 'Measured refresh rate = %f' % measure_framerate
+    if abs(measure_framerate-projector_refresh_rate)/projector_refresh_rate > 0.01:
+        print 'WARNING!! Measured refresh rate was %.2f, expecting %.2f.\nTiming may not be accurate if relying on frame rate!' % (measure_framerate,projector_refresh_rate)
+    
+    return win
+
+
 ###### Routines for accessing the parallel port interface:
+
+try:
+    from ctypes import windll
+    pport = windll.inpout32
+except:
+    pport = None
+
 
 tag_port = 0x0378
 data_port = 0x0379
+zero = 135
 
 class ParallelDaemon(object):
     '''Runs a loop on a seperate process to monitor parallel port and record data with timestamps'''
-    def __init__(self,poll_time=10,address=data_port):
+    def __init__(self,poll_time=0.1,address=data_port):
         self.queue = Queue()
         self.poll_time = poll_time
         self.monitor_process = None
-        self._port = None
         self.address = address
-        try:
-            self._port = parallel.ParallelPort(address=address)
-        except:
-            # Will fail on OSX since it has no parallel port, and
-            # the dummy class won't allow you to initiate at an address
-            pass
 
     def start(self):
         self.stop()
@@ -60,14 +79,16 @@ class ParallelDaemon(object):
             self.monitor_process.terminate()
 
     def _start_monitor(self):
-        last_data = 0
+        import sys
+        print 'starting up'
+        last_data = zero
         while True:
             time.sleep(self.poll_time/1000.)
-            if self._port:
-                new_data = self._port.readData()
-                if new_data!=last_data and new_data!=0:
-                    last_data = new_data
+            if pport:
+                new_data = pport.Inp32(self.address)
+                if new_data!=last_data and new_data!=zero:
                     self.queue.put((clock.getTime(),new_data))
+                last_data = new_data
 
     def has_data(self):
         '''``Boolean`` of whether new data has been detected'''
@@ -82,16 +103,15 @@ class ParallelDaemon(object):
             pass
         return data
 
-try:
-    _tag_port = parallel.ParallelPort(tag_port)
-except:
-    _tag_port = None
+def parallel_out(number):
+    '''Sets the parallel port to the given number'''
+    if pport:
+        pport.Out32(tag_port,number)
 
 def send_tag(number,width=10):
     '''Send ``number`` to the parallel port, to be recorded on the "tag" channel of the MEG system.
     Allows for accurate timing of events by creating time-stamps of events alongside the MEG data.
     Will hold ``number`` for ``width``ms, then reset back to zero'''
-    if _tag_port:
-        tag_port.setData(number)
-        core.wait(float(width)/1000)
-        tag_port.setData(0)
+    parallel_out(number)
+    core.wait(float(width)/1000)
+    parallel_out(0)
