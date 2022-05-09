@@ -6,6 +6,6 @@ script no longer works on 64-bit systems, and so I started developing a USB inte
 
 ## Files:
 
-* `meg_comm.py`: the Python library to use the USB interface box
+* `meg_comm.py`: the Python library to use the USB interface box. This is the only file you need to use the box.
 * `meg_demo.py`: and example Python script to show you how the interface works
-* `MEG_Box_Arduino`: the Arduino source code loaded onto the interface box. You don't need to use this (unless you're making another box). Just placed here for reference
+* `Box_Construction`: a directory containing the Arduino source code, 3D models, and PCB. You don't need to use this (unless you're making another box). Just placed here for reference

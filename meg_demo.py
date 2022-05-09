@@ -38,7 +38,7 @@ meg = MEGComm(port=meg_port)
 meg.start()
 
 print("Outputting 100ms square wave tags to each output now...")
-for i in range(5):
+for i in range(8):
     print(i+1)
     meg.sendTag(i+1)
     sleep(0.5)

@@ -6,6 +6,8 @@ Original author:   William Gross
         Written to solve the issues with sending tags and recieving inputs from
         the MEG scanner at MCW. This library is the companion for a USB box made
         with an Arduino to interface to the MEG system.
+    v1.1: 4/26/2022
+        Updated to new PCB box
 """
 
 
@@ -18,7 +20,7 @@ from time import sleep
 
 # Constants that shouldn't be changed:
 _megbox_baudrate = 115200
-_megbox_numbuttons = 2
+_megbox_numbuttons = 4
 _MP_STARTCODE    = b'x'
 _MP_GETTIME      = b't'
 _MP_ADDTIME      = b'a'

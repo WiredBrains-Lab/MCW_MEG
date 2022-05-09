@@ -6,6 +6,8 @@
 //        Written to solve the issues with sending tags and recieving inputs from
 //        the MEG scanner at MCW. This program was meant to run on an Arduino that
 //        interfaces through USB from the presentation computer to the MEG interface box
+//    v1.1: 4/26/2022
+//        Updated to PCB printed from EasyEDA. Increased outputs to 8 and inputs to 5.
 
 
 #define MP_STARTCODE    'x'
@@ -34,75 +36,65 @@
 
 #define   PULSE_WIDTH   100   // ms
 
-#define NUM_OUT   5
-#define NUM_IN    2
+#define NUM_OUT   8
+// Make sure to change ISR functions if you change the number of inputs!
+#define NUM_IN    4
 
-const unsigned char out_pins[NUM_OUT] = {4, 5, 6, 7, 8};
-const unsigned char inout_pins[NUM_IN] = {9,10};
-const unsigned char in_pins[NUM_IN] = {2, 3};
+const unsigned char out_pins[NUM_OUT] = {14, 15, 16, 17, 18, 19, 20, 21};
+const unsigned char inout_pins[NUM_IN] = {7, 8, 9, 10};
+const unsigned char in_pins[NUM_IN] = {5, 4, 3, 2};
 
 // Keep track of times for pulse generation
-unsigned long out_pulse[NUM_OUT] = {0, 0, 0, 0, 0};
-volatile unsigned long inout_pulse[NUM_IN] = {0, 0};
+unsigned long out_pulse[NUM_OUT];
+volatile unsigned long inout_pulse[NUM_IN];
 
 unsigned long millis_offset = 0;
 
 // We will buffer this many responses while we wait for them to be read by the computer. If more responses are
 // recieved they will overwrite (oldest will disappear first)
-#define BUFFER_SIZE   100
+#define BUFFER_SIZE   50
 // If we recieve the same button press within this number of ms, skip it
 #define BOUNCE_SKIP   10
 
 // resp_i[b] stores the current index of resp_times[b]. As the responses are read, this will increase
 // and then "rotate" around resp_times. It's more efficient to rotate the starting value (versus always 
 // using "0") and trying to shift the array in memory (which is very expensive)
-unsigned int resp_i[NUM_IN] = {0,0};
+unsigned int resp_i[NUM_IN];
 // resp_last contains the index after the last recieved value. If resp_i[b] == resp_last[b], no new responses
 // have been received
-volatile unsigned int resp_last[NUM_IN] = {0,0};
+volatile unsigned int resp_last[NUM_IN];
 // The ms times of recieved responses
-volatile unsigned long resp_times_0[BUFFER_SIZE];
-volatile unsigned long resp_times_1[BUFFER_SIZE];
-volatile unsigned long last_time[NUM_IN] = {0,0};
-unsigned long *resp_times[NUM_IN];
+volatile unsigned long last_time[NUM_IN];
+volatile unsigned long *resp_times[NUM_IN];
 
 //////// INTERRUPT FUNCTIONS /////////
 // To maintain precise timing, the responses are recorded by interrupt functions. No matter where the program is,
 // when a button is pressed the microprocessor will interrupt processing and run the following codes to record button
-// presses and timing. Because this is an interrupt, it needs to be kept simple.
-void button_0_ISR() {
+// presses and timing. Because this is an interrupt, it needs to be kept simple. The interrupts don't take arguments, so
+// each function needs to be hardcoded.
+
+
+void button_X_ISR(int pin) {
   unsigned long new_time = millis() - millis_offset;
-  if((new_time - last_time[0]) < BOUNCE_SKIP) {
+  if((new_time - last_time[pin]) < BOUNCE_SKIP) {
     return;
   }
-  resp_times_0[resp_last[0]] = new_time;
-  last_time[0] = new_time;
+  resp_times[pin][resp_last[pin]] = new_time;
+  last_time[pin] = new_time;
 
-  inout_pulse[0] = 1;
-  resp_last[0] += 1;
-  if(resp_last[0] >= BUFFER_SIZE) {
+  inout_pulse[pin] = 1;
+  resp_last[pin] += 1;
+  if(resp_last[pin] >= BUFFER_SIZE) {
     // We've gone over our limit, so loop back to 0 and keep going
-    resp_last[0] = 0;
+    resp_last[pin] = 0;
   }
 }
 
-// I know it's inefficient to hard code these, but I'm more concerned about timing
-void button_1_ISR() {
-  unsigned long new_time = millis() - millis_offset;
-  if((new_time - last_time[1]) < BOUNCE_SKIP) {
-    return;
-  }
-  resp_times_1[resp_last[1]] = new_time;
-  last_time[1] = new_time;
-
-  inout_pulse[1] = 1;
-  resp_last[1] += 1;
-  if(resp_last[1] >= BUFFER_SIZE) {
-    // We've gone over our limit, so loop back to 0 and keep going
-    resp_last[1] = 0;
-  }
-}
-
+// This needs to be changed if the number of buttons changes (along with the corresponding code in the setup function)
+void button_1_ISR() { button_X_ISR(0); }
+void button_2_ISR() { button_X_ISR(1); }
+void button_3_ISR() { button_X_ISR(2); }
+void button_4_ISR() { button_X_ISR(3); }
 
 void send_resps() {
   byte n;
@@ -167,20 +159,24 @@ void setup() {
 
   for(i=0;i<NUM_OUT;i++) {
     pinMode(out_pins[i],OUTPUT);
+    out_pulse[i] = 0;
   }
 
-  resp_times[0] = resp_times_0;
-  resp_times[1] = resp_times_1;
   for(i=0;i<NUM_IN;i++) {
-    //resp_times[i] = (unsigned long *)malloc(sizeof(unsigned long)*BUFFER_SIZE);
+    resp_times[i] = (volatile unsigned long *)malloc(sizeof(unsigned long)*BUFFER_SIZE);
     pinMode(in_pins[i],INPUT);
     pinMode(inout_pins[i],OUTPUT);
+    inout_pulse[i] = 0;
+    resp_i[i] = 0;
+    resp_last[i] = 0;
+    last_time[i] = 0;
   }
 
   // Attach the interrupt functions to the rising edge of the input pins
-  attachInterrupt(digitalPinToInterrupt(in_pins[0]),button_0_ISR,RISING);
-  
-  attachInterrupt(digitalPinToInterrupt(in_pins[1]),button_1_ISR,RISING);
+  attachInterrupt(digitalPinToInterrupt(in_pins[0]),button_1_ISR,RISING);
+  attachInterrupt(digitalPinToInterrupt(in_pins[1]),button_2_ISR,RISING);
+  attachInterrupt(digitalPinToInterrupt(in_pins[2]),button_3_ISR,RISING);
+  attachInterrupt(digitalPinToInterrupt(in_pins[3]),button_4_ISR,RISING);
 }
 
 #define TIMEOUT   10000
