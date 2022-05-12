@@ -8,6 +8,8 @@ Original author:   William Gross
         with an Arduino to interface to the MEG system.
     v1.1: 4/26/2022
         Updated to new PCB box
+    v1.2: 5/11/2022
+        Added funcs
 """
 
 
@@ -17,6 +19,7 @@ Original author:   William Gross
 import serial
 import struct
 from time import sleep
+import serial.tools.list_ports
 
 # Constants that shouldn't be changed:
 _megbox_baudrate = 115200
@@ -34,10 +37,19 @@ _MP_RESP_START   = b'<'
 _MP_RESP_END     = b'>'
 _MP_NUMRESP      = b'X'
 
+def autodetect_ports():
+    a = [x for x in serial.tools.list_ports.grep('Arduino')]
+    if len(a)==0:
+        return None
+    return a[0].device
+
 class MEGComm(object):
     def __init__(self,
-        port='COM4'
+        port=None
     ):
+        port = autodetect_ports()
+        if port==None:
+            raise Exception('Cannot autodetect port. Please supply manually.')
         self.port = port
         self.baudrate = _megbox_baudrate
         self.ser = None
@@ -84,6 +96,31 @@ class MEGComm(object):
     """
     def sendTag(self,i):
         self._send_code(_MP_OUTPULSE,i-1)
+
+    """ sendByte(i)
+
+    Send a square wave pulse to output pins corresponding to the binary representation of `i`
+    """
+    def sendByte(self,i):
+        if i<0 or i>255:
+            raise Exception('Called sendByte with a non-byte number!')
+        bin = '{0:08b}'.format(i)
+        for j in range(8):
+            self._send_code(_MP_OUTPULSE,int(bin[j]))
+
+    """ pinOn(i)
+
+    Turn on pin #i (first pin = 1)
+    """
+    def pinOn(self,i):
+        self._send_code(_MP_OUTON,i-1)
+
+    """ pinOff(i)
+
+    Turn on pin #i (first pin = 1)
+    """
+    def pinOff(self,i):
+        self._send_code(_MP_OUTOFF,i-1)
 
     """ getResp(times=False)
 
