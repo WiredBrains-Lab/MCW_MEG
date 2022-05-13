@@ -47,9 +47,10 @@ class MEGComm(object):
     def __init__(self,
         port=None
     ):
-        port = autodetect_ports()
         if port==None:
-            raise Exception('Cannot autodetect port. Please supply manually.')
+            port = autodetect_ports()
+            if port==None:
+                raise Exception('Cannot autodetect port. Please supply manually.')
         self.port = port
         self.baudrate = _megbox_baudrate
         self.ser = None
@@ -59,7 +60,8 @@ class MEGComm(object):
         sleep(0.1) # Takes a second to start up
 
     def stop(self):
-        self.ser.close()
+        if self.ser != None:
+            self.ser.close()
 
     def __del__(self):
         self.stop()
